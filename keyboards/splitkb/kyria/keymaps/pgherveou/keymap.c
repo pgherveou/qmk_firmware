@@ -25,12 +25,21 @@
 #endif
 
 #include QMK_KEYBOARD_H
+#include "timer.h"
+
+#ifdef CONSOLE_ENABLE
+#    include "print.h"
+#endif
 
 enum layers {
     _QWERTY = 0,
     _NAV,
     _SYM,
     _FUNCTION,
+};
+
+enum custom_keycodes {
+    NAV_VL = SAFE_RANGE,
 };
 
 // Aliases for readability
@@ -50,118 +59,88 @@ enum layers {
 #define ALT_KRG LALT(KC_RIGHT)
 #define ALT_KLT LALT(KC_LEFT)
 
+static uint16_t retro_timer;
+
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 /*
  * Base Layer: QWERTY
- *
- * ,-------------------------------------------.                              ,-------------------------------------------.
- * |    `   |   Q  |   W  |   E  |   R  |   T  |                              |   Y  |   U  |   I  |   O  |   P  |   =    |
- * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |Ctrl/Tab|   A  |   S  |   D  |   F  |   G  |                              |   H  |   J  |   K  |   L  | ;  : |   ' "  |
- * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
- * |SFT/|   |   Z  |   X  |   C  |   V  |   B  | [ {  |      |  |F-keys|  ] } |   N  |   M  | ,  < | . >  | /  ? | \      |
- * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |      | Ctrl | ALT  |Space/| Del/ |  | Bksp | Sym/ | Shift|  -   |      |
- *                        |      |      |      |Nav   | LGUI |  |      | Enter|      |      |      |
- *                        `----------------------------------'  `----------------------------------'
  */
     [_QWERTY] = LAYOUT(
      KC_GRV  , KC_Q ,  KC_W   ,  KC_E  ,   KC_R ,   KC_T ,                                          KC_Y,   KC_U ,  KC_I ,   KC_O ,  KC_P , KC_EQL,
      CTL_TAB , KC_A ,  KC_S   ,  KC_D  ,   KC_F ,   KC_G ,                                          KC_H,   KC_J ,  KC_K ,   KC_L ,KC_SCLN, KC_QUOT,
-     SFT_PIP , KC_Z ,  KC_X   ,  KC_C  ,   KC_V ,   KC_B ,   KC_LBRC, XXXXXXX,     FKEYS  , KC_RBRC,KC_N,   KC_M ,KC_COMM, KC_DOT ,KC_SLSH, KC_BSLS,
-                               XXXXXXX ,   KC_LCTL, KC_LALT, SPC_NAV, GUI_DEL,     GUI_BSP, ENT_SYM,KC_RSFT,KC_MINS, XXXXXXX
+     SFT_PIP , KC_Z ,  KC_X   ,  KC_C  ,   KC_V ,   KC_B ,   KC_LBRC, KC_MEH,      FKEYS  , KC_RBRC,KC_N,   KC_M ,KC_COMM, KC_DOT ,KC_SLSH, KC_BSLS,
+                               KC_LGUI , KC_LALT, KC_LSHIFT, SPC_NAV, GUI_DEL,     GUI_BSP, ENT_SYM,KC_RSFT,CTL_MINS, XXXXXXX
     ),
 
 /*
  * Nav Layer: Media, navigation
- *
- * ,-------------------------------------------.                              ,-------------------------------------------.
- * |        |      |      |      |      |      |                              | Home | PgUp |      |      |      |        |
- * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        |  CTL |  GUI | Opt  | Shift|      |                              |  ←   |  ↓   |   ↑  |   →  |      |        |
- * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
-   |        |      |      |      |      |      |      |      |  |      |      | End  | PgDn |      |      |      |        |
- * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |      |      |      |      |      |  |      |      |      |      |      |
- *                        |      |      |      |      |      |  |      |      |      |      |      |
- *                        `----------------------------------'  `----------------------------------'
  */
     [_NAV] = LAYOUT(
-      XXXXXXX, XXXXXXX, ALT_KRG, XXXXXXX, XXXXXXX, XXXXXXX,                                     KC_HOME, KC_PGUP, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-      XXXXXXX, KC_LCTL, KC_LGUI, KC_LALT, KC_LSFT, XXXXXXX,                                     KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, XXXXXXX, XXXXXXX,
-      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, ALT_KLT, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, KC_END , KC_PGDN, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-                                 XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
+      XXXXXXX, XXXXXXX, ALT_KRG, LSFT(ALT_KRG), XXXXXXX, XXXXXXX,                                          KC_HOME, KC_PGUP, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+      _______, KC_LCTL, KC_LGUI, KC_LALT, KC_LSFT, LSFT(ALT_KLT),                                    KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, XXXXXXX, XXXXXXX,
+      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, NAV_VL,  ALT_KLT, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, KC_END , KC_PGDN, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+                                 XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      _______, XXXXXXX, _______, _______, XXXXXXX
     ),
 
 /*
  * Sym Layer: Numbers and symbols
- *
- * ,-------------------------------------------.                              ,-------------------------------------------.
- * |    `   |  1   |  2   |  3   |  4   |  5   |                              |   6  |  7   |  8   |  9   |  0   |   =    |
- * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |    ~   |  !   |  @   |  #   |  $   |  %   |                              |   ^  |  &   |  *   |  (   |  )   |   +    |
- * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
- * |    |   |   \  |  :   |  ;   |  -   |  [   |  {   |      |  |      |   }  |   ]  |  _   |  ,   |  .   |  /   |   ?    |
- * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |      |      |      |      |      |  |      |      |      |      |      |
- *                        |      |      |      |      |      |  |      |      |      |      |      |
- *                        `----------------------------------'  `----------------------------------'
  */
     [_SYM] = LAYOUT(
-      KC_GRV ,   KC_1 ,   KC_2 ,   KC_3 ,   KC_4 ,   KC_5 ,                                       KC_6 ,   KC_7 ,   KC_8 ,   KC_9 ,   KC_0 , KC_EQL ,
-     KC_TILD , KC_EXLM,  KC_AT , KC_HASH,  KC_DLR, KC_PERC,                                     KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_PLUS,
-     KC_PIPE , KC_BSLS, KC_COLN, KC_SCLN, KC_MINS, KC_LBRC, KC_LCBR, XXXXXXX, XXXXXXX, KC_RCBR, KC_RBRC, KC_UNDS, KC_COMM,  KC_DOT, KC_SLSH, KC_QUES,
-                              G(KC_KP_0), XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
+      KC_GRV ,   KC_1 ,   KC_2 ,   KC_3 ,   KC_4 ,   KC_5 ,                                            KC_6 ,   KC_7 ,   KC_8 ,   KC_9 ,   KC_0 , KC_EQL ,
+     KC_TILD , KC_EXLM,  KC_AT , KC_HASH,  KC_DLR, KC_PERC,                                          KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_PLUS,
+     KC_PIPE , KC_BSLS, KC_COLN, KC_SCLN, KC_MINS, KC_LBRC, KC_LCBR, XXXXXXX,      XXXXXXX, KC_RCBR, KC_RBRC, KC_UNDS, KC_COMM,  KC_DOT, KC_SLSH, KC_QUES,
+                              G(KC_KP_0), XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
     ),
 
 /*
  * Function Layer: Function keys
- *
- * ,-------------------------------------------.                              ,-------------------------------------------.
- * |        |  F9  | F10  | F11  | F12  |      |                              |      |      |      |      |      |        |
- * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        |  F5  |  F6  |  F7  |  F8  |      |                              |      | Shift| Ctrl |  Alt |  GUI |        |
- * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
- * |        |  F1  |  F2  |  F3  |  F4  |      |      |      |  |      |      |      |      |      |      |      |        |
- * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |      |      |      |      |      |  |      |      |      |      |      |
- *                        |      |      |      |      |      |  |      |      |      |      |      |
- *                        `----------------------------------'  `----------------------------------'
  */
     [_FUNCTION] = LAYOUT(
-      XXXXXXX,  KC_F9 ,  KC_F10,  KC_F11,  KC_F12, XXXXXXX,                                     XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-      XXXXXXX,  KC_F5 ,  KC_F6 ,  KC_F7 ,  KC_F8 , XXXXXXX,                                     XXXXXXX, KC_RSFT, KC_RCTL, KC_LALT, KC_RGUI, XXXXXXX,
-      XXXXXXX,  KC_F1 ,  KC_F2 ,  KC_F3 ,  KC_F4 , XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-                                 XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
+      XXXXXXX,  KC_F9 ,  KC_F10,  KC_F11,  KC_F12, XXXXXXX,                                          XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+      XXXXXXX,  KC_F5 ,  KC_F6 ,  KC_F7 ,  KC_F8 , LGUI(LSFT(KC_4)),                                          XXXXXXX, KC_RSFT, KC_RCTL, KC_LALT, KC_RGUI, XXXXXXX,
+      XXXXXXX,  KC_F1 ,  KC_F2 ,  KC_F3 ,  KC_F4 , LGUI(LALT(KC_I)), XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+                                 XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,              XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
     ),
 
 // /*
 //  * Layer template
-//  *
-//  * ,-------------------------------------------.                              ,-------------------------------------------.
-//  * |        |      |      |      |      |      |                              |      |      |      |      |      |        |
-//  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
-//  * |        |      |      |      |      |      |                              |      |      |      |      |      |        |
-//  * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
-//  * |        |      |      |      |      |      |      |      |  |      |      |      |      |      |      |      |        |
-//  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
-//  *                        |      |      |      |      |      |  |      |      |      |      |      |
-//  *                        |      |      |      |      |      |  |      |      |      |      |      |
-//  *                        `----------------------------------'  `----------------------------------'
 //  */
 //     [_LAYERINDEX] = LAYOUT(
-//       XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,                                     XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-//       XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,                                     XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-//       XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
-//                                  XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
+//       XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,                                          XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+//       XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,                                          XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+//       XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+//                                  XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX
 //     ),
+};
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+   case SPC_NAV:
+   case ENT_SYM:
+    if (record->event.pressed) {
+        retro_timer = timer_read();
+    }
+    break;
+   case NAV_VL:
+        if (record->event.pressed) {
+            SEND_STRING(SS_LGUI(SS_TAP(X_LEFT)) SS_LGUI(SS_LSFT(SS_TAP(X_RIGHT))));
+        }
+        break;
+    }
+    return true;
 };
 
 #ifdef RETRO_TAPPING_PER_KEY
 bool get_retro_tapping(uint16_t keycode, keyrecord_t *record) {
+    // enable retro tapping only if it happens within max 2*term
+    if (timer_elapsed(retro_timer) > 2*TAPPING_TERM) {
+        return false;
+    }
     switch (keycode) {
-        case LT(_NAV, KC_SPACE):
+        case SPC_NAV:
+        case ENT_SYM:
+        case CTL_MINS:
             return true;
         default:
             return false;
@@ -234,12 +213,20 @@ bool encoder_update_user(uint8_t index, bool clockwise) {
     switch (get_highest_layer(layer_state | default_layer_state)) {
         case _QWERTY:
             if (index == 0) {
-                // Volume control
-                if (clockwise) {
-                    tap_code(KC_VOLU);
+                if (get_mods() & MOD_MASK_GUI) {
+                    if (clockwise) {
+                        tap_code16(KC_TAB);
+                    } else {
+                        tap_code16(S(KC_TAB));
+                    }
                 } else {
-                    tap_code(KC_VOLD);
+                    if (clockwise) {
+                        tap_code16(KC_RIGHT);
+                    } else {
+                        tap_code16(KC_LEFT);
+                    }
                 }
+
             } else if (index == 1) {
                 // Page up/Page down
                 if (clockwise) {
@@ -255,6 +242,16 @@ bool encoder_update_user(uint8_t index, bool clockwise) {
                     tap_code16(G(A(KC_RIGHT)));
                 } else {
                     tap_code16(G(A(KC_LEFT)));
+                }
+            }
+            break;
+
+        case _FUNCTION:
+            if (index == 0) {
+                if (clockwise) {
+                    tap_code16(KC_UP);
+                } else {
+                    tap_code16(KC_DOWN);
                 }
             }
             break;
@@ -284,22 +281,24 @@ const rgblight_segment_t PROGMEM my_shift_layer[]  = RGBLIGHT_LAYER_SEGMENTS({3,
 const rgblight_segment_t PROGMEM my_ctrl_layer[]   = RGBLIGHT_LAYER_SEGMENTS({4, 1, HSV_ORANGE}, {14, 1, HSV_ORANGE});
 const rgblight_segment_t PROGMEM my_alt_layer[]    = RGBLIGHT_LAYER_SEGMENTS({5, 1, HSV_GOLD}, {15, 1, HSV_GOLD});
 const rgblight_segment_t PROGMEM my_gui_layer[]    = RGBLIGHT_LAYER_SEGMENTS({9, 1, HSV_PINK}, {19, 1, HSV_PINK});
+const rgblight_segment_t PROGMEM my_fn_layer[]     = RGBLIGHT_LAYER_SEGMENTS({0, 20, HSV_PURPLE});
 
-const rgblight_segment_t* const PROGMEM my_rgb_layers[] = RGBLIGHT_LAYERS_LIST(my_qwerty_layer, my_nav_layer, my_sym_layer, my_shift_layer, my_ctrl_layer, my_alt_layer, my_gui_layer);
+const rgblight_segment_t *const PROGMEM my_rgb_layers[] = RGBLIGHT_LAYERS_LIST(my_qwerty_layer, my_nav_layer, my_sym_layer, my_fn_layer, my_shift_layer, my_ctrl_layer, my_alt_layer, my_gui_layer);
 
 layer_state_t layer_state_set_user(layer_state_t state) {
     rgblight_set_layer_state(0, layer_state_cmp(state, _QWERTY));
     rgblight_set_layer_state(1, layer_state_cmp(state, _NAV));
     rgblight_set_layer_state(2, layer_state_cmp(state, _SYM));
+    rgblight_set_layer_state(3, layer_state_cmp(state, _FUNCTION));
     return state;
 }
 
 void matrix_scan_user(void) {
     uint8_t mods = mod_config(get_mods());
-    rgblight_set_layer_state(3, mods & MOD_MASK_SHIFT);
-    rgblight_set_layer_state(4, mods & MOD_MASK_CTRL);
-    rgblight_set_layer_state(5, mods & MOD_MASK_ALT);
-    rgblight_set_layer_state(6, mods & MOD_MASK_GUI);
+    rgblight_set_layer_state(4, mods & MOD_MASK_SHIFT);
+    rgblight_set_layer_state(5, mods & MOD_MASK_CTRL);
+    rgblight_set_layer_state(6, mods & MOD_MASK_ALT);
+    rgblight_set_layer_state(7, mods & MOD_MASK_GUI);
 }
 
 void keyboard_post_init_user(void) {
