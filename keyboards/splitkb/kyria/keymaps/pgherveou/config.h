@@ -35,7 +35,3 @@
 #    define ENCODER_DIRECTION_FLIP
 #    define ENCODER_RESOLUTION 2
 #endif
-
-#ifdef COMBO_ENABLE
-#    define COMBO_COUNT 1
-#endif
